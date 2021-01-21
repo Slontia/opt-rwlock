@@ -3,10 +3,10 @@
 #include <atomic>
 #include <shared_mutex>
 
-class EffectiveRWLock
+class OptRWLock
 {
  public:
-  EffectiveRWLock() : reading_count_(0), all_write_count_(0), is_writing_(false) {}
+  OptRWLock() : reading_count_(0), all_write_count_(0), is_writing_(false) {}
   bool ReadLock()
   {
     do {
@@ -15,13 +15,16 @@ class EffectiveRWLock
         if (all_write_count_.load() == 0) {
           return true;
         } else if (-- reading_count_ == 0) {
-          std::unique_lock<std::mutex> l(m_);
+          // Shortly holding mutex is necessary because condition judgement and waiting lock
+          // are not atomical.
+          // Correct order to notify: 1) modify variables; 2) shortly lock; 3) notify
+          (std::lock_guard<std::mutex>(m_));
           cv_.notify_all();
         }
       }
-    } while ([&cv = cv_, &m = m_, &all_write_count = all_write_count_] {
-               std::unique_lock<std::mutex> l(m);
-               cv.wait(l, [&all_write_count] { return all_write_count.load() == 0; });
+    } while ([this] {
+               std::unique_lock<std::mutex> l(m_);
+               cv_.wait(l, [this] { return all_write_count_.load() == 0; });
                return true;
              }());
     return false;
@@ -29,17 +32,17 @@ class EffectiveRWLock
 
   bool WriteLock()
   {
-    ++ all_write_count_;
     std::unique_lock<std::mutex> l(m_);
-    cv_.wait(l, [&reading_count = reading_count_, &is_writing = is_writing_] {
-                  return reading_count.load() == 0 && !is_writing;
-                });
+    ++ all_write_count_;
+    cv_.wait(l, [this] { return reading_count_.load() == 0 && !is_writing_; });
     is_writing_ = true;
     return true;
   }
 
   void Unlock()
   {
+    // Read is_writing_ need not hold mutex because is_writing_ will not be changed during
+    // rwlock is held.
     if (is_writing_) {
       WriteUnlock_();
     } else {
@@ -48,20 +51,22 @@ class EffectiveRWLock
   }
 
  private:
-  void WriteUnlock_()
-  {
-    is_writing_ = false;
-    -- all_write_count_;
-    std::unique_lock<std::mutex> l(m_);
-    cv_.notify_all();
-  }
-
   void ReadUnlock_()
   {
     if (-- reading_count_ == 0) {
-      std::unique_lock<std::mutex> l(m_);
+      (std::lock_guard<std::mutex>(m_)); // shortly hold mutex
       cv_.notify_all();
     }
+  }
+
+  void WriteUnlock_()
+  {
+    {
+      std::lock_guard<std::mutex> l(m_);
+      is_writing_ = false;
+      -- all_write_count_;
+    }
+    cv_.notify_all();
   }
 
   std::mutex m_;
@@ -71,23 +76,4 @@ class EffectiveRWLock
   bool is_writing_;
 };
 
-class StdRWLock
-{
- public:
-  bool ReadLock()
-  {
-    m_.lock_shared();
-    is_unique_ = false;
-    return true;
-  }
-  bool WriteLock()
-  {
-    m_.lock();
-    is_unique_ = true;
-    return true;
-  }
-  void Unlock() { is_unique_ ? m_.unlock() : m_.unlock_shared(); }
- private:
-  bool is_unique_;
-  std::shared_mutex m_;
-};
+

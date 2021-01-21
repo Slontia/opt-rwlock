@@ -13,6 +13,9 @@ DEFINE_uint64(increase_size, 5, "Increase size for each writing");
 class StdRWLock
 {
  public:
+  StdRWLock() {}
+  StdRWLock(const StdRWLock&) = delete;
+
   bool ReadLock()
   {
     m_.lock_shared();
@@ -39,7 +42,6 @@ class CondRWLock
  public:
   CondRWLock() : reading_count_(0), all_write_count_(0), is_writing_(false) {}
   CondRWLock(const CondRWLock&) = delete;
-  CondRWLock(CondRWLock&&) = delete;
 
   bool ReadLock()
   {

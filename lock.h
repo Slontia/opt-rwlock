@@ -7,6 +7,8 @@ class OptRWLock
 {
  public:
   OptRWLock() : reading_count_(0), all_write_count_(0), is_writing_(false) {}
+  OptRWLock(const OptRWLock&) = delete;
+
   bool ReadLock()
   {
     do {

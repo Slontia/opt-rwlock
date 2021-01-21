@@ -3,11 +3,12 @@
 #include <vector>
 #include <iostream>
 #include <chrono>
+#include <gflags/gflags.h>
 
-static const constexpr int kReadThreadNum = 1000;
-static const constexpr int kWriteThreadNum = 1;
-static const constexpr int kAddCount = 10;
-static const constexpr int kAddNum = 5;
+DEFINE_uint64(read_threads, 100, "Number of reading threads");
+DEFINE_uint64(write_threads, 1, "Number of writing threads");
+DEFINE_uint64(increase_times, 100, "Increase times");
+DEFINE_uint64(increase_size, 5, "Increase size for each writing");
 
 class StdRWLock
 {
@@ -18,13 +19,16 @@ class StdRWLock
     is_unique_ = false;
     return true;
   }
+
   bool WriteLock()
   {
     m_.lock();
     is_unique_ = true;
     return true;
   }
+
   void Unlock() { is_unique_ ? m_.unlock() : m_.unlock_shared(); }
+
  private:
   bool is_unique_;
   std::shared_mutex m_;
@@ -114,16 +118,16 @@ void TestLock()
 
   auto start = std::chrono::system_clock::now();
 
-  CreateThreads(write_threads, kWriteThreadNum, [&a, &b, &lock] {
-        for (int i = 0; i < kAddCount; ++ i) {
+  CreateThreads(write_threads, FLAGS_write_threads, [&a, &b, &lock] {
+        for (int i = 0; i < FLAGS_increase_times; ++ i) {
           lock.WriteLock();
-          for (int j = 0; j < kAddNum; ++ j) { ++ a; }
-          for (int j = 0; j < kAddNum; ++ j) { -- b; }
+          for (int j = 0; j < FLAGS_increase_size; ++ j) { ++ a; }
+          for (int j = 0; j < FLAGS_increase_size; ++ j) { -- b; }
           lock.Unlock();
         }
       });
 
-  CreateThreads(read_threads, kReadThreadNum, [&is_over, &a, &b, &lock] {
+  CreateThreads(read_threads, FLAGS_read_threads, [&is_over, &a, &b, &lock] {
         while (!is_over.load()) {
           lock.ReadLock();
           if (a + b != 0) {
@@ -144,8 +148,8 @@ void TestLock()
 
   std::chrono::duration<double> read_over_diff = std::chrono::system_clock::now() - start;
 
-  if (a + b != 0 || a != kWriteThreadNum * kAddCount * kAddNum) {
-    std::cerr << "[ERROR] mismatch (" << a << ", " << b << ") expected: " << kWriteThreadNum * kAddCount * kAddNum << std::endl;
+  if (a + b != 0 || a != FLAGS_write_threads * FLAGS_increase_times * FLAGS_increase_size) {
+    std::cerr << "[ERROR] mismatch (" << a << ", " << b << ") expected: " << FLAGS_write_threads * FLAGS_increase_times * FLAGS_increase_size << std::endl;
   }
 
   std::cout << "[INFO] write over: " << write_over_diff.count() << "s, read over: " << read_over_diff.count() << "s" << std::endl;
@@ -153,9 +157,14 @@ void TestLock()
 
 int main()
 {
+  std::cout << "[INFO] reading threads: " << FLAGS_read_threads << std::endl;
+  std::cout << "[INFO] writing threads: " << FLAGS_write_threads << std::endl;
+  std::cout << "[INFO] increase times: " << FLAGS_increase_times << std::endl;
+  std::cout << "[INFO] increase size: " << FLAGS_increase_size << std::endl;
+
   TestLock<OptRWLock>();
-  TestLock<StdRWLock>();
   TestLock<CondRWLock>();
+  TestLock<StdRWLock>();
   return 0;
 }
 

@@ -16,18 +16,16 @@ class StdRWLock
   StdRWLock() {}
   StdRWLock(const StdRWLock&) = delete;
 
-  bool ReadLock()
+  void ReadLock()
   {
     m_.lock_shared();
     is_unique_ = false;
-    return true;
   }
 
-  bool WriteLock()
+  void WriteLock()
   {
     m_.lock();
     is_unique_ = true;
-    return true;
   }
 
   void Unlock() { is_unique_ ? m_.unlock() : m_.unlock_shared(); }
@@ -43,21 +41,19 @@ class CondRWLock
   CondRWLock() : reading_count_(0), all_write_count_(0), is_writing_(false) {}
   CondRWLock(const CondRWLock&) = delete;
 
-  bool ReadLock()
+  void ReadLock()
   {
     std::unique_lock<std::mutex> l(mu_);
     cv_.wait(l, [this] { return all_write_count_ == 0; });
     ++ reading_count_;
-    return true;
   }
 
-  bool WriteLock() // same as OptRWLock
+  void WriteLock() // same as OptRWLock
   {
     std::unique_lock<std::mutex> l(mu_);
     ++ all_write_count_;
     cv_.wait(l, [this] { return reading_count_ == 0 && !is_writing_; });
     is_writing_ = true;
-    return true;
   }
 
   void Unlock() // same as OptRWLock
@@ -164,7 +160,7 @@ int main()
   std::cout << "[INFO] increase times: " << FLAGS_increase_times << std::endl;
   std::cout << "[INFO] increase size: " << FLAGS_increase_size << std::endl;
 
-  TestLock<OptRWLock>();
+  TestLock<opt::RWLock>();
   TestLock<CondRWLock>();
   TestLock<StdRWLock>();
   return 0;

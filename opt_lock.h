@@ -82,34 +82,28 @@ class RWLock
     cv_.notify_all();
   }
 
-  template <typename Lock, typename Cond>
-  bool Wait_(Lock&& l, Cond&& cond)
+  template <typename Cond>
+  bool Wait_(std::unique_lock<std::mutex>& l, Cond&& cond)
   {
     cv_.wait(l, cond);
     return true;
   }
 
-  template <typename Lock, typename Cond>
-  bool Wait_(Lock&& l, Cond&& cond, std::try_to_lock_t)
+  template <typename Cond>
+  bool Wait_(std::unique_lock<std::mutex>& l, Cond&& cond, std::try_to_lock_t)
   {
     return cond();
   }
 
-  template <typename Lock, typename Cond, typename Rep, typename Period>
-  bool Wait_(Lock&& l, Cond&& cond, const std::chrono::duration<Rep, Period>& duration)
+  template <typename Cond, typename Rep, typename Period>
+  bool Wait_(std::unique_lock<std::mutex>& l, Cond&& cond, const std::chrono::duration<Rep, Period>& duration)
   {
-    if (!l) {
-      l.lock();
-    }
     return cv_.wait_for(l, duration, cond);
   }
 
-  template <typename Lock, typename Cond, typename Clock, typename Duration>
-  bool Wait_(Lock&& l, Cond&& cond, const std::chrono::time_point<Clock, Duration>& time_point)
+  template <typename Cond, typename Clock, typename Duration>
+  bool Wait_(std::unique_lock<std::mutex>& l, Cond&& cond, const std::chrono::time_point<Clock, Duration>& time_point)
   {
-    if (!l) {
-      l.lock();
-    }
     return cv_.wait_until(l, time_point, cond);
   }
 

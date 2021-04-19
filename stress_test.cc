@@ -1,4 +1,4 @@
-#include "lock.h"
+#include "opt_lock.h"
 #include <thread>
 #include <vector>
 #include <iostream>
@@ -153,8 +153,10 @@ void TestLock()
   std::cout << "[INFO] write over: " << write_over_diff.count() << "s, read over: " << read_over_diff.count() << "s" << std::endl;
 };
 
-int main()
+int main(int argc, char **argv)
 {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+
   std::cout << "[INFO] reading threads: " << FLAGS_read_threads << std::endl;
   std::cout << "[INFO] writing threads: " << FLAGS_write_threads << std::endl;
   std::cout << "[INFO] increase times: " << FLAGS_increase_times << std::endl;

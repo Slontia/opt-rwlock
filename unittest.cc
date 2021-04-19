@@ -1,4 +1,4 @@
-#include "lock.h"
+#include "opt_lock.h"
 #include <future>
 #include <gtest/gtest.h>
 
